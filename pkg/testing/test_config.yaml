@@ -1,0 +1,149 @@
+# Integration Test Configuration
+# This file configures the comprehensive testing infrastructure
+
+# Database configuration for tests
+database_image: "cockroachdb/cockroach:latest"
+database_port: 26257
+database_user: "root"
+database_password: ""
+database_name: "scholarplatforms_test"
+
+# Redis configuration for tests
+redis_image: "redis:7-alpine"
+redis_port: 6379
+redis_password: "test-redis-password"
+
+# Test timeouts
+startup_timeout: "60s"
+request_timeout: "30s"
+shutdown_timeout: "30s"
+
+# Network configuration
+network_name: "scholarplatforms-test-network"
+
+# Test data paths
+test_data_dir: "./testdata"
+fixtures_dir: "./testdata/fixtures"
+schemas_dir: "./testdata/schemas"
+
+# Services to test
+services:
+  - name: "apigateway"
+    image: "scholarplatforms/apigateway:test"
+    port: 3000
+    health_endpoint: "/health"
+    environment:
+      - "ENVIRONMENT=test"
+      - "LOG_LEVEL=debug"
+      - "DB_HOST=cockroachdb"
+      - "REDIS_HOST=redis"
+    wait_strategies:
+      - "http"
+      - "log"
+    dependencies:
+      - "cockroachdb"
+      - "redis"
+
+  - name: "notification"
+    image: "scholarplatforms/notification:test"
+    port: 3001
+    health_endpoint: "/api/notification/health"
+    environment:
+      - "ENVIRONMENT=test"
+      - "LOG_LEVEL=debug"
+      - "DB_HOST=cockroachdb"
+      - "REDIS_HOST=redis"
+      - "APIGATEWAY_URL=http://apigateway:3000"
+    wait_strategies:
+      - "http"
+    dependencies:
+      - "cockroachdb"
+      - "redis"
+      - "apigateway"
+
+  - name: "userprofile"
+    image: "scholarplatforms/userprofile:test"
+    port: 3003
+    health_endpoint: "/api/userprofile/health"
+    environment:
+      - "ENVIRONMENT=test"
+      - "LOG_LEVEL=debug"
+      - "DB_HOST=cockroachdb"
+      - "REDIS_HOST=redis"
+      - "APIGATEWAY_URL=http://apigateway:3000"
+    wait_strategies:
+      - "http"
+    dependencies:
+      - "cockroachdb"
+      - "redis"
+      - "apigateway"
+
+  - name: "zitadel-service"
+    image: "scholarplatforms/zitadel:test"
+    port: 3004
+    health_endpoint: "/api/zitadel/health"
+    environment:
+      - "ENVIRONMENT=test"
+      - "LOG_LEVEL=debug"
+      - "ZITADEL_URL=http://localhost:8080"
+      - "APIGATEWAY_URL=http://apigateway:3000"
+    wait_strategies:
+      - "http"
+    dependencies:
+      - "apigateway"
+
+# Load test scenarios
+load_test_scenarios:
+  - name: "basic_health_check"
+    concurrent: 10
+    duration: "30s"
+    requests_per_second: 50
+    requests:
+      - method: "GET"
+        endpoint: "/health"
+    assertions:
+      - field: "status_code"
+        operator: "equals"
+        expected: 200
+        description: "Health check should return 200"
+      - field: "duration"
+        operator: "less_than"
+        expected: "100ms"
+        description: "Health check should be fast"
+
+  - name: "api_gateway_routing"
+    concurrent: 5
+    duration: "60s"
+    requests_per_second: 20
+    requests:
+      - method: "GET"
+        endpoint: "/api/notification/health"
+      - method: "GET"
+        endpoint: "/api/userprofile/health"
+    assertions:
+      - field: "status_code"
+        operator: "equals"
+        expected: 200
+        description: "API Gateway routing should work"
+
+# Test suites configuration
+test_suites:
+  unit_tests:
+    enabled: true
+    timeout: "5m"
+    coverage_threshold: 80
+    
+  integration_tests:
+    enabled: true
+    timeout: "15m"
+    parallel: true
+    
+  e2e_tests:
+    enabled: true
+    timeout: "30m"
+    browser: "headless-chrome"
+    
+  performance_tests:
+    enabled: true
+    timeout: "10m"
+    baseline_file: "./testdata/performance_baseline.json"
