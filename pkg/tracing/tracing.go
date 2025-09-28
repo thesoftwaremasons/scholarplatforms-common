@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -30,8 +30,11 @@ func NewTracingManager(cfg config.TracingConfig) (*TracingManager, error) {
 		}, nil
 	}
 
-	// Create Jaeger exporter
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(cfg.JaegerEndpoint)))
+	// Create OTLP HTTP exporter for Tempo
+	exp, err := otlptracehttp.New(context.Background(),
+		otlptracehttp.WithEndpoint(cfg.TempoEndpoint),
+		otlptracehttp.WithInsecure(), // Use insecure for local development
+	)
 	if err != nil {
 		return nil, err
 	}

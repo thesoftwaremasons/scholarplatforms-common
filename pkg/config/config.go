@@ -61,10 +61,10 @@ type MetricsConfig struct {
 
 // TracingConfig represents tracing configuration
 type TracingConfig struct {
-	Enabled        bool    `yaml:"enabled"`
-	ServiceName    string  `yaml:"service_name"`
-	JaegerEndpoint string  `yaml:"jaeger_endpoint"`
-	SampleRate     float64 `yaml:"sample_rate"`
+	Enabled      bool    `yaml:"enabled"`
+	ServiceName  string  `yaml:"service_name"`
+	TempoEndpoint string  `yaml:"tempo_endpoint"`
+	SampleRate   float64 `yaml:"sample_rate"`
 }
 
 // ZitadelConfig represents Zitadel configuration
