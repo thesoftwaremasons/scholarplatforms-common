@@ -20,10 +20,10 @@ type SuccessResponse struct {
 
 // ErrorResponse represents an error API response
 type ErrorResponse struct {
-	Success   bool                   `json:"success"`
-	Error     ErrorDetail            `json:"error"`
-	Timestamp string                 `json:"timestamp"`
-	TraceID   string                 `json:"trace_id,omitempty"`
+	Success   bool        `json:"success"`
+	Error     ErrorDetail `json:"error"`
+	Timestamp string      `json:"timestamp"`
+	TraceID   string      `json:"trace_id,omitempty"`
 }
 
 // ErrorDetail contains error information
@@ -35,10 +35,10 @@ type ErrorDetail struct {
 
 // PaginationMeta contains pagination metadata
 type PaginationMeta struct {
-	Page       int `json:"page"`
-	PerPage    int `json:"per_page"`
-	Total      int `json:"total"`
-	TotalPages int `json:"total_pages"`
+	Page       int  `json:"page"`
+	PerPage    int  `json:"per_page"`
+	Total      int  `json:"total"`
+	TotalPages int  `json:"total_pages"`
 	HasNext    bool `json:"has_next"`
 	HasPrev    bool `json:"has_prev"`
 }
@@ -73,7 +73,7 @@ func (rw *ResponseWriter) WriteSuccess(w http.ResponseWriter, data interface{}, 
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		TraceID:   traceID,
 	}
-	
+
 	rw.writeJSON(w, http.StatusOK, response)
 }
 
@@ -86,7 +86,7 @@ func (rw *ResponseWriter) WriteCreated(w http.ResponseWriter, data interface{}, 
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		TraceID:   traceID,
 	}
-	
+
 	rw.writeJSON(w, http.StatusCreated, response)
 }
 
@@ -104,7 +104,7 @@ func (rw *ResponseWriter) WritePaginated(w http.ResponseWriter, data interface{}
 		Timestamp:  time.Now().UTC().Format(time.RFC3339),
 		TraceID:    traceID,
 	}
-	
+
 	rw.writeJSON(w, http.StatusOK, response)
 }
 
@@ -113,7 +113,7 @@ func (rw *ResponseWriter) WriteError(w http.ResponseWriter, err error, traceID s
 	var appErr *errors.AppError
 	var statusCode int
 	var errorDetail ErrorDetail
-	
+
 	if errors.IsAppError(err) {
 		appErr, _ = errors.AsAppError(err)
 		statusCode = appErr.StatusCode
@@ -122,15 +122,15 @@ func (rw *ResponseWriter) WriteError(w http.ResponseWriter, err error, traceID s
 			Message: appErr.Message,
 			Details: appErr.Details,
 		}
-		
+
 		// Log error details for internal errors
-		if statusCode >= 500 {
+		if rw.logger != nil && statusCode >= 500 {
 			rw.logger.Error("Internal server error",
 				logger.ErrorField(err),
 				logger.String("trace_id", traceID),
 				logger.String("code", string(appErr.Code)),
 			)
-		} else {
+		} else if rw.logger != nil {
 			rw.logger.Warn("Client error",
 				logger.ErrorField(err),
 				logger.String("trace_id", traceID),
@@ -145,20 +145,22 @@ func (rw *ResponseWriter) WriteError(w http.ResponseWriter, err error, traceID s
 			Code:    errors.ErrCodeInternalError,
 			Message: "An internal error occurred",
 		}
-		
-		rw.logger.Error("Unexpected error",
-			logger.ErrorField(err),
-			logger.String("trace_id", traceID),
-		)
+
+		if rw.logger != nil {
+			rw.logger.Error("Unexpected error",
+				logger.ErrorField(err),
+				logger.String("trace_id", traceID),
+			)
+		}
 	}
-	
+
 	response := ErrorResponse{
 		Success:   false,
 		Error:     errorDetail,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		TraceID:   traceID,
 	}
-	
+
 	rw.writeJSON(w, statusCode, response)
 }
 
@@ -166,9 +168,11 @@ func (rw *ResponseWriter) WriteError(w http.ResponseWriter, err error, traceID s
 func (rw *ResponseWriter) writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		rw.logger.Error("Failed to encode JSON response", logger.ErrorField(err))
+		if rw.logger != nil {
+			rw.logger.Error("Failed to encode JSON response", logger.ErrorField(err))
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }

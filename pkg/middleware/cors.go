@@ -20,7 +20,7 @@ func NewCORSMiddleware(cfg config.CORSConfig) *CORSMiddleware {
 		cfg.AllowedOrigins = []string{"*"}
 	}
 	if len(cfg.AllowedMethods) == 0 {
-		cfg.AllowedMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+		cfg.AllowedMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 	}
 	if len(cfg.AllowedHeaders) == 0 {
 		cfg.AllowedHeaders = []string{"Content-Type", "Authorization"}
@@ -40,9 +40,26 @@ func (c *CORSMiddleware) Handler() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 
-			// Check if origin is allowed
-			if c.isOriginAllowed(origin) {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
+			// Check if origin is allowed and set appropriate header
+			if origin != "" && c.isOriginAllowed(origin) {
+				// If credentials are allowed, we must set specific origin (not *)
+				if c.config.AllowCredentials {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+				} else {
+					// Check if wildcard is in allowed origins
+					hasWildcard := false
+					for _, allowedOrigin := range c.config.AllowedOrigins {
+						if allowedOrigin == "*" {
+							hasWildcard = true
+							break
+						}
+					}
+					if hasWildcard {
+						w.Header().Set("Access-Control-Allow-Origin", "*")
+					} else {
+						w.Header().Set("Access-Control-Allow-Origin", origin)
+					}
+				}
 			}
 
 			// Set allowed methods
@@ -56,8 +73,8 @@ func (c *CORSMiddleware) Handler() func(http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Expose-Headers", strings.Join(c.config.ExposedHeaders, ", "))
 			}
 
-			// Set credentials
-			if c.config.AllowCredentials {
+			// Set credentials (only if we set a specific origin)
+			if c.config.AllowCredentials && origin != "" {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 
@@ -121,9 +138,33 @@ func (c *CORSMiddleware) matchWildcard(pattern, origin string) bool {
 func CORS(next http.Handler) http.Handler {
 	// Default CORS configuration
 	corsMiddleware := NewCORSMiddleware(config.CORSConfig{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type", "Authorization", "X-Request-ID"},
+		AllowedOrigins: []string{
+			"http://localhost:3005",
+			"http://localhost:3006",
+			"http://localhost:3000",
+			"http://127.0.0.1:3005",
+			"http://127.0.0.1:3006",
+			"http://127.0.0.1:3000",
+			// Support subdomain-based multi-tenancy
+			"http://*.localtest.me:3005",
+			"http://*.localtest.me:3006",
+			"http://*.localtest.me:3000",
+		},
+		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{
+			"Content-Type",
+			"Authorization",
+			"X-Request-ID",
+			"X-User-ID",
+			"X-User-Email",
+			"X-User-Name",
+			"X-User-Role",
+			"X-Organization-ID",
+			"X-School-ID",
+			"X-Session-Token",
+			"X-Session-Data",
+			"X-Service-Token",
+		},
 		ExposedHeaders:   []string{"X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           86400,

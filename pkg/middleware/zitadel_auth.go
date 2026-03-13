@@ -16,11 +16,12 @@ type ZitadelTokenValidator interface {
 
 // UserContext represents authenticated user information
 type UserContext struct {
-	UserID   string                 `json:"user_id"`
-	Username string                 `json:"username"`
-	Email    string                 `json:"email"`
-	Roles    []string               `json:"roles"`
-	Claims   map[string]interface{} `json:"claims"`
+	UserID    string                 `json:"user_id"`
+	Username  string                 `json:"username"`
+	Email     string                 `json:"email"`
+	Roles     []string               `json:"roles"`
+	Claims    map[string]interface{} `json:"claims"`
+	AuthToken string                 `json:"-"` // Raw token for downstream calls
 }
 
 // ZitadelAuthMiddleware provides Zitadel authentication middleware
@@ -76,6 +77,9 @@ func (z *ZitadelAuthMiddleware) RequireAuthorization(roles ...string) func(http.
 				http.Error(w, "Invalid token format", http.StatusUnauthorized)
 				return
 			}
+
+			// Store raw token for downstream services
+			userCtx.AuthToken = token
 
 			// Check roles if specified
 			if len(roles) > 0 && !z.hasAnyRole(userCtx, roles) {
