@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -116,22 +117,10 @@ func (c *CORSMiddleware) isOriginAllowed(origin string) bool {
 
 // matchWildcard checks if origin matches wildcard pattern
 func (c *CORSMiddleware) matchWildcard(pattern, origin string) bool {
-	// Simple wildcard matching - replace * with regex equivalent
-	pattern = strings.ReplaceAll(pattern, "*", ".*")
-
-	// This is a simplified implementation
-	// For production, consider using regexp or more sophisticated matching
-	if strings.HasPrefix(pattern, ".*") {
-		suffix := pattern[2:] // Remove .*
-		return strings.HasSuffix(origin, suffix)
-	}
-
-	if strings.HasSuffix(pattern, ".*") {
-		prefix := pattern[:len(pattern)-2] // Remove .*
-		return strings.HasPrefix(origin, prefix)
-	}
-
-	return false
+	quoted := regexp.QuoteMeta(pattern)
+	expression := "^" + strings.ReplaceAll(quoted, "\\*", ".*") + "$"
+	matched, err := regexp.MatchString(expression, origin)
+	return err == nil && matched
 }
 
 // CORS is a convenience function that creates a default CORS middleware
@@ -161,6 +150,7 @@ func CORS(next http.Handler) http.Handler {
 			"X-User-Role",
 			"X-Organization-ID",
 			"X-School-ID",
+			"X-Active-School-ID",
 			"X-Session-Token",
 			"X-Session-Data",
 			"X-Service-Token",

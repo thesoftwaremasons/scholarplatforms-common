@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/thesoftwaremasons/scholarplatforms-common/pkg/logger"
+	"github.com/thesoftwaremasons/scholarplatforms-common/pkg/roles"
 )
 
 // SessionUser contains user information from session
@@ -41,6 +42,16 @@ func NewSessionAuthMiddleware(log logger.Logger) *SessionAuthMiddleware {
 func (m *SessionAuthMiddleware) ExtractSessionContext() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !m.isTrustedIdentitySource(r) {
+				if m.hasIdentityHeaders(r) {
+					m.logger.Warn("ignoring untrusted identity headers",
+						logger.String("remote_addr", r.RemoteAddr),
+						logger.String("path", r.URL.Path))
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			// Extract user info from headers (set by API Gateway or frontend)
 			userID := r.Header.Get("X-User-ID")
 			schoolID := r.Header.Get("X-School-ID")
@@ -155,7 +166,7 @@ func (m *SessionAuthMiddleware) RequireRole(roles ...string) func(http.Handler) 
 
 			hasRole := false
 			for _, role := range roles {
-				if strings.EqualFold(user.Role, role) {
+				if m.userHasRole(user.Role, role) {
 					hasRole = true
 					break
 				}
@@ -175,6 +186,36 @@ func (m *SessionAuthMiddleware) RequireRole(roles ...string) func(http.Handler) 
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (m *SessionAuthMiddleware) isTrustedIdentitySource(r *http.Request) bool {
+	return r.Header.Get("X-Gateway-Service") != "" ||
+		r.Header.Get("X-Gateway-Instance") != "" ||
+		r.Header.Get("X-Service-Name") != ""
+}
+
+func (m *SessionAuthMiddleware) hasIdentityHeaders(r *http.Request) bool {
+	return r.Header.Get("X-User-ID") != "" ||
+		r.Header.Get("X-School-ID") != "" ||
+		r.Header.Get("X-User-Email") != "" ||
+		r.Header.Get("X-User-Role") != "" ||
+		r.Header.Get("X-Campus-Ids") != "" ||
+		r.Header.Get("X-Session-Data") != ""
+}
+
+func (m *SessionAuthMiddleware) userHasRole(userRoles string, requiredRole string) bool {
+	normalizedRequired := roles.Normalize(requiredRole)
+	for _, role := range strings.Split(userRoles, ",") {
+		normalized := roles.Normalize(strings.TrimSpace(role))
+		// SuperAdmin bypasses all role checks
+		if strings.EqualFold(normalized, "SuperAdmin") {
+			return true
+		}
+		if strings.EqualFold(normalized, normalizedRequired) {
+			return true
+		}
+	}
+	return false
 }
 
 // parseSessionData parses JSON session data from header
@@ -255,6 +296,23 @@ func GetAuthToken(ctx context.Context) string {
 		return userCtx.AuthToken
 	}
 	return ""
+}
+
+// GetRoles retrieves the user's roles as a slice from session context.
+// The Role field may be a single value or a comma-separated list.
+func GetRoles(ctx context.Context) []string {
+	user := GetSessionUser(ctx)
+	if user == nil || user.Role == "" {
+		return []string{}
+	}
+	parts := strings.Split(user.Role, ",")
+	roles := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			roles = append(roles, t)
+		}
+	}
+	return roles
 }
 
 // respondJSON sends JSON response

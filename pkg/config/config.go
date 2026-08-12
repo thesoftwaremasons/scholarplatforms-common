@@ -9,16 +9,17 @@ import (
 
 // ServerConfig represents common server configuration
 type ServerConfig struct {
-	Host           string        `yaml:"host" env:"SERVER_HOST" validate:"required"`
-	Port           int           `yaml:"port" env:"SERVER_PORT" validate:"required,min=1,max=65535"`
-	Environment    string        `yaml:"environment" env:"NODE_ENV" validate:"required,oneof=development staging production"`
-	ReadTimeout    time.Duration `yaml:"read_timeout" env:"SERVER_READ_TIMEOUT"`
-	WriteTimeout   time.Duration `yaml:"write_timeout" env:"SERVER_WRITE_TIMEOUT"`
-	IdleTimeout    time.Duration `yaml:"idle_timeout" env:"SERVER_IDLE_TIMEOUT"`
+	Host            string        `yaml:"host" env:"SERVER_HOST" validate:"required"`
+	Port            int           `yaml:"port" env:"SERVER_PORT" validate:"required,min=1,max=65535"`
+	Environment     string        `yaml:"environment" env:"NODE_ENV" validate:"required,oneof=development staging production"`
+	ReadTimeout     time.Duration `yaml:"read_timeout" env:"SERVER_READ_TIMEOUT"`
+	WriteTimeout    time.Duration `yaml:"write_timeout" env:"SERVER_WRITE_TIMEOUT"`
+	IdleTimeout     time.Duration `yaml:"idle_timeout" env:"SERVER_IDLE_TIMEOUT"`
+	RequestTimeout  time.Duration `yaml:"request_timeout" env:"SERVER_REQUEST_TIMEOUT"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" env:"SERVER_SHUTDOWN_TIMEOUT"`
-	TLSEnabled     bool          `yaml:"tls_enabled" env:"TLS_ENABLED"`
-	TLSCertPath    string        `yaml:"tls_cert_path" env:"TLS_CERT_PATH"`
-	TLSKeyPath     string        `yaml:"tls_key_path" env:"TLS_KEY_PATH"`
+	TLSEnabled      bool          `yaml:"tls_enabled" env:"TLS_ENABLED"`
+	TLSCertPath     string        `yaml:"tls_cert_path" env:"TLS_CERT_PATH"`
+	TLSKeyPath      string        `yaml:"tls_key_path" env:"TLS_KEY_PATH"`
 }
 
 // DatabaseConfig represents common database configuration
@@ -61,23 +62,24 @@ type MetricsConfig struct {
 
 // TracingConfig represents tracing configuration
 type TracingConfig struct {
-	Enabled      bool    `yaml:"enabled"`
-	ServiceName  string  `yaml:"service_name"`
+	Enabled       bool    `yaml:"enabled"`
+	ServiceName   string  `yaml:"service_name"`
 	TempoEndpoint string  `yaml:"tempo_endpoint"`
-	SampleRate   float64 `yaml:"sample_rate"`
+	SampleRate    float64 `yaml:"sample_rate"`
 }
 
 // ZitadelConfig represents Zitadel configuration
 type ZitadelConfig struct {
-	Enabled           bool   `yaml:"enabled"`
-	Endpoint          string `yaml:"endpoint"`
-	ProjectID         string `yaml:"project_id"`
-	ClientID          string `yaml:"client_id"`
-	ClientPrivateKey  string `yaml:"client_private_key"`
-	RedirectURL       string `yaml:"redirect_url"`
-	Issuer            string `yaml:"issuer"`
-	JWKSURL           string `yaml:"jwks_url"`
-	Scopes            []string `yaml:"scopes"`
+	Enabled          bool     `yaml:"enabled"`
+	Endpoint         string   `yaml:"endpoint"`
+	ProjectID        string   `yaml:"project_id"`
+	ClientID         string   `yaml:"client_id"`
+	ClientPrivateKey string   `yaml:"client_private_key"`
+	RedirectURL      string   `yaml:"redirect_url"`
+	Issuer           string   `yaml:"issuer"`
+	JWKSURL          string   `yaml:"jwks_url"`
+	ServiceURL       string   `yaml:"service_url"`
+	Scopes           []string `yaml:"scopes"`
 }
 
 // AuthConfig represents authentication configuration
@@ -153,6 +155,9 @@ func (s *ServerConfig) SetDefaults() {
 	}
 	if s.IdleTimeout == 0 {
 		s.IdleTimeout = 120 * time.Second
+	}
+	if s.RequestTimeout == 0 {
+		s.RequestTimeout = 60 * time.Second
 	}
 	if s.ShutdownTimeout == 0 {
 		s.ShutdownTimeout = 15 * time.Second

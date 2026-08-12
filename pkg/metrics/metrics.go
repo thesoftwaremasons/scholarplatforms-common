@@ -12,11 +12,17 @@ import (
 
 // MetricsManager handles Prometheus metrics
 type MetricsManager struct {
-	registry      *prometheus.Registry
-	httpRequests  *prometheus.CounterVec
-	httpDuration  *prometheus.HistogramVec
-	activeConns   prometheus.Gauge
-	dbConnections *prometheus.GaugeVec
+	registry       *prometheus.Registry
+	httpRequests   *prometheus.CounterVec
+	httpDuration   *prometheus.HistogramVec
+	activeConns    prometheus.Gauge
+	dbConnections  *prometheus.GaugeVec
+	natsConnected  prometheus.Gauge
+	jobRuns        *prometheus.CounterVec
+	jobDuration    *prometheus.HistogramVec
+	jobQueueDepth  *prometheus.GaugeVec
+	domainOps      *prometheus.CounterVec
+	domainDuration *prometheus.HistogramVec
 }
 
 // NewMetricsManager creates a new metrics manager
@@ -58,18 +64,76 @@ func NewMetricsManager(serviceName string) *MetricsManager {
 		[]string{"state"}, // open, idle, in_use
 	)
 
+	natsConnected := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nats_connected",
+			Help: "Whether the service is currently connected to NATS (1 connected, 0 disconnected)",
+		},
+	)
+
+	jobRuns := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "background_job_runs_total",
+			Help: "Total number of background job runs",
+		},
+		[]string{"job", "outcome"},
+	)
+	jobDuration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "background_job_duration_seconds",
+			Help:    "Background job duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"job", "outcome"},
+	)
+	jobQueueDepth := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "background_job_queue_depth",
+			Help: "Current number of queued background jobs",
+		},
+		[]string{"queue"},
+	)
+
+	domainOps := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "domain_operations_total",
+			Help: "Total number of domain operations",
+		},
+		[]string{"operation", "outcome"},
+	)
+	domainDuration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "domain_operation_duration_seconds",
+			Help:    "Domain operation duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"operation", "outcome"},
+	)
+
 	// Register metrics
 	registry.MustRegister(httpRequests)
 	registry.MustRegister(httpDuration)
 	registry.MustRegister(activeConns)
 	registry.MustRegister(dbConnections)
+	registry.MustRegister(natsConnected)
+	registry.MustRegister(jobRuns)
+	registry.MustRegister(jobDuration)
+	registry.MustRegister(jobQueueDepth)
+	registry.MustRegister(domainOps)
+	registry.MustRegister(domainDuration)
 
 	return &MetricsManager{
-		registry:      registry,
-		httpRequests:  httpRequests,
-		httpDuration:  httpDuration,
-		activeConns:   activeConns,
-		dbConnections: dbConnections,
+		registry:       registry,
+		httpRequests:   httpRequests,
+		httpDuration:   httpDuration,
+		activeConns:    activeConns,
+		dbConnections:  dbConnections,
+		natsConnected:  natsConnected,
+		jobRuns:        jobRuns,
+		jobDuration:    jobDuration,
+		jobQueueDepth:  jobQueueDepth,
+		domainOps:      domainOps,
+		domainDuration: domainDuration,
 	}
 }
 
@@ -104,6 +168,32 @@ func (m *MetricsManager) SetDatabaseConnections(open, idle, inUse int) {
 	m.dbConnections.WithLabelValues("open").Set(float64(open))
 	m.dbConnections.WithLabelValues("idle").Set(float64(idle))
 	m.dbConnections.WithLabelValues("in_use").Set(float64(inUse))
+}
+
+// SetNATSConnected records whether the service has an active NATS connection.
+func (m *MetricsManager) SetNATSConnected(connected bool) {
+	if connected {
+		m.natsConnected.Set(1)
+		return
+	}
+	m.natsConnected.Set(0)
+}
+
+// RecordBackgroundJob records a completed background job execution.
+func (m *MetricsManager) RecordBackgroundJob(job, outcome string, duration time.Duration) {
+	m.jobRuns.WithLabelValues(job, outcome).Inc()
+	m.jobDuration.WithLabelValues(job, outcome).Observe(duration.Seconds())
+}
+
+// SetJobQueueDepth records the current depth of a named in-process queue.
+func (m *MetricsManager) SetJobQueueDepth(queue string, depth int) {
+	m.jobQueueDepth.WithLabelValues(queue).Set(float64(depth))
+}
+
+// RecordDomainOperation records an application/domain operation.
+func (m *MetricsManager) RecordDomainOperation(operation, outcome string, duration time.Duration) {
+	m.domainOps.WithLabelValues(operation, outcome).Inc()
+	m.domainDuration.WithLabelValues(operation, outcome).Observe(duration.Seconds())
 }
 
 // Handler returns the HTTP handler for metrics endpoint

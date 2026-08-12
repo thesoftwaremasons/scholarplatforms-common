@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"os"
 	"sync"
 	"time"
 
@@ -70,12 +71,15 @@ func NewZapLogger(config ZapConfig) (*ZapLogger, error) {
 	var writeSyncer zapcore.WriteSyncer
 	switch config.Output {
 	case "stdout":
-		writeSyncer = zapcore.Lock(zapcore.AddSync(zapcore.NewMultiWriteSyncer()))
+		writeSyncer = zapcore.Lock(os.Stdout)
 	case "stderr":
-		writeSyncer = zapcore.Lock(zapcore.AddSync(zapcore.NewMultiWriteSyncer()))
+		writeSyncer = zapcore.Lock(os.Stderr)
 	default:
-		// File output would be implemented here
-		writeSyncer = zapcore.Lock(zapcore.AddSync(zapcore.NewMultiWriteSyncer()))
+		file, err := os.OpenFile(config.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, err
+		}
+		writeSyncer = zapcore.Lock(file)
 	}
 
 	// Create core and logger
@@ -195,7 +199,7 @@ func (z *ZapLogger) convertFields(fields []Field) []zap.Field {
 func (z *ZapLogger) callHooks(level, msg string, fields []Field) {
 	z.mu.RLock()
 	defer z.mu.RUnlock()
-	
+
 	timestamp := time.Now()
 	for _, hook := range z.hooks {
 		hook(level, msg, fields, timestamp)

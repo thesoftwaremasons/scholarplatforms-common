@@ -26,22 +26,24 @@ func (tm *TimeoutMiddleware) Handler() func(http.Handler) http.Handler {
 			defer cancel()
 
 			r = r.WithContext(ctx)
-			
+
 			// Create a channel to signal completion
 			done := make(chan struct{})
-			
+
 			go func() {
 				defer close(done)
 				next.ServeHTTP(w, r)
 			}()
-			
+
 			select {
 			case <-done:
 				// Request completed successfully
 			case <-ctx.Done():
 				// Request timed out
 				if ctx.Err() == context.DeadlineExceeded {
-					http.Error(w, "Request timeout", http.StatusRequestTimeout)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusRequestTimeout)
+					_, _ = w.Write([]byte(`{"success":false,"error":{"code":"REQUEST_TIMEOUT","message":"Request timeout"},"code":"REQUEST_TIMEOUT","message":"Request timeout"}`))
 				}
 			}
 		})
