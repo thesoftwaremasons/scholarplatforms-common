@@ -12,6 +12,7 @@ import (
 	"github.com/thesoftwaremasons/scholarplatforms-common/pkg/circuitbreaker"
 	"github.com/thesoftwaremasons/scholarplatforms-common/pkg/errors"
 	"github.com/thesoftwaremasons/scholarplatforms-common/pkg/logger"
+	commonmiddleware "github.com/thesoftwaremasons/scholarplatforms-common/pkg/middleware"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -32,15 +33,19 @@ type Config struct {
 	CircuitBreakerCfg *circuitbreaker.Config
 	DefaultHeaders    map[string]string
 	EnableTracing     bool
+	Transport         http.RoundTripper
 }
 
 // NewClient creates a new enhanced HTTP client
 func NewClient(cfg Config, log logger.Logger, cbManager *circuitbreaker.CircuitBreakerManager) *Client {
 	// Create HTTP client with optional tracing
-	var transport http.RoundTripper = &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
+	var transport http.RoundTripper = cfg.Transport
+	if transport == nil {
+		transport = &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		}
 	}
 
 	// Wrap with OpenTelemetry if tracing enabled
@@ -127,6 +132,7 @@ func (c *Client) Do(ctx context.Context, req Request) (*Response, error) {
 	for k, v := range req.Headers {
 		httpReq.Header.Set(k, v)
 	}
+	applyContextHeaders(ctx, httpReq)
 
 	// Set Content-Type if body is present
 	if req.Body != nil && httpReq.Header.Get("Content-Type") == "" {
@@ -190,6 +196,18 @@ func (c *Client) Do(ctx context.Context, req Request) (*Response, error) {
 		Headers:    resp.Header,
 		Body:       respBody,
 	}, nil
+}
+
+func applyContextHeaders(ctx context.Context, req *http.Request) {
+	if tenantID := commonmiddleware.GetTenantID(ctx); tenantID != "" && req.Header.Get("X-Tenant-ID") == "" {
+		req.Header.Set("X-Tenant-ID", tenantID)
+	}
+	if schoolID := commonmiddleware.GetSchoolID(ctx); schoolID != "" && req.Header.Get("X-School-ID") == "" {
+		req.Header.Set("X-School-ID", schoolID)
+	}
+	if authToken := commonmiddleware.GetAuthToken(ctx); authToken != "" && req.Header.Get("Authorization") == "" {
+		req.Header.Set("Authorization", authToken)
+	}
 }
 
 // Get executes a GET request

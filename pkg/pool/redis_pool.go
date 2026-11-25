@@ -25,50 +25,50 @@ type RedisPool struct {
 // RedisPoolConfig holds configuration for Redis connection pooling
 type RedisPoolConfig struct {
 	// Connection settings
-	Addresses  []string `env:"REDIS_ADDRESSES" yaml:"addresses"`
-	Password   string   `env:"REDIS_PASSWORD" yaml:"password"`
-	Database   int      `env:"REDIS_DATABASE" yaml:"database"`
-	Username   string   `env:"REDIS_USERNAME" yaml:"username"`
+	Addresses  []string `env:"VALKEY_ADDRESSES" yaml:"addresses"`
+	Password   string   `env:"VALKEY_PASSWORD" yaml:"password"`
+	Database   int      `env:"VALKEY_DATABASE" yaml:"database"`
+	Username   string   `env:"VALKEY_USERNAME" yaml:"username"`
 	
 	// Pool configuration
-	PoolSize        int           `env:"REDIS_POOL_SIZE" yaml:"pool_size"`
-	MinIdleConns    int           `env:"REDIS_MIN_IDLE_CONNS" yaml:"min_idle_conns"`
-	MaxConnAge      time.Duration `env:"REDIS_MAX_CONN_AGE" yaml:"max_conn_age"`
-	PoolTimeout     time.Duration `env:"REDIS_POOL_TIMEOUT" yaml:"pool_timeout"`
-	IdleTimeout     time.Duration `env:"REDIS_IDLE_TIMEOUT" yaml:"idle_timeout"`
-	IdleCheckFreq   time.Duration `env:"REDIS_IDLE_CHECK_FREQ" yaml:"idle_check_freq"`
+	PoolSize        int           `env:"VALKEY_POOL_SIZE" yaml:"pool_size"`
+	MinIdleConns    int           `env:"VALKEY_MIN_IDLE_CONNS" yaml:"min_idle_conns"`
+	MaxConnAge      time.Duration `env:"VALKEY_MAX_CONN_AGE" yaml:"max_conn_age"`
+	PoolTimeout     time.Duration `env:"VALKEY_POOL_TIMEOUT" yaml:"pool_timeout"`
+	IdleTimeout     time.Duration `env:"VALKEY_IDLE_TIMEOUT" yaml:"idle_timeout"`
+	IdleCheckFreq   time.Duration `env:"VALKEY_IDLE_CHECK_FREQ" yaml:"idle_check_freq"`
 	
 	// Timeouts
-	DialTimeout  time.Duration `env:"REDIS_DIAL_TIMEOUT" yaml:"dial_timeout"`
-	ReadTimeout  time.Duration `env:"REDIS_READ_TIMEOUT" yaml:"read_timeout"`
-	WriteTimeout time.Duration `env:"REDIS_WRITE_TIMEOUT" yaml:"write_timeout"`
+	DialTimeout  time.Duration `env:"VALKEY_DIAL_TIMEOUT" yaml:"dial_timeout"`
+	ReadTimeout  time.Duration `env:"VALKEY_READ_TIMEOUT" yaml:"read_timeout"`
+	WriteTimeout time.Duration `env:"VALKEY_WRITE_TIMEOUT" yaml:"write_timeout"`
 	
 	// Cluster configuration (for Redis Cluster)
-	ClusterEnabled      bool          `env:"REDIS_CLUSTER_ENABLED" yaml:"cluster_enabled"`
-	MaxRedirects        int           `env:"REDIS_MAX_REDIRECTS" yaml:"max_redirects"`
-	ReadOnly            bool          `env:"REDIS_READ_ONLY" yaml:"read_only"`
-	RouteByLatency      bool          `env:"REDIS_ROUTE_BY_LATENCY" yaml:"route_by_latency"`
-	RouteRandomly       bool          `env:"REDIS_ROUTE_RANDOMLY" yaml:"route_randomly"`
+	ClusterEnabled      bool          `env:"VALKEY_CLUSTER_ENABLED" yaml:"cluster_enabled"`
+	MaxRedirects        int           `env:"VALKEY_MAX_REDIRECTS" yaml:"max_redirects"`
+	ReadOnly            bool          `env:"VALKEY_READ_ONLY" yaml:"read_only"`
+	RouteByLatency      bool          `env:"VALKEY_ROUTE_BY_LATENCY" yaml:"route_by_latency"`
+	RouteRandomly       bool          `env:"VALKEY_ROUTE_RANDOMLY" yaml:"route_randomly"`
 	
 	// Sentinel configuration (for Redis Sentinel)
-	SentinelEnabled     bool     `env:"REDIS_SENTINEL_ENABLED" yaml:"sentinel_enabled"`
-	MasterName          string   `env:"REDIS_MASTER_NAME" yaml:"master_name"`
-	SentinelAddresses   []string `env:"REDIS_SENTINEL_ADDRESSES" yaml:"sentinel_addresses"`
-	SentinelPassword    string   `env:"REDIS_SENTINEL_PASSWORD" yaml:"sentinel_password"`
+	SentinelEnabled     bool     `env:"VALKEY_SENTINEL_ENABLED" yaml:"sentinel_enabled"`
+	MasterName          string   `env:"VALKEY_MASTER_NAME" yaml:"master_name"`
+	SentinelAddresses   []string `env:"VALKEY_SENTINEL_ADDRESSES" yaml:"sentinel_addresses"`
+	SentinelPassword    string   `env:"VALKEY_SENTINEL_PASSWORD" yaml:"sentinel_password"`
 	
 	// Health check configuration
-	HealthCheckInterval time.Duration `env:"REDIS_HEALTH_CHECK_INTERVAL" yaml:"health_check_interval"`
-	HealthCheckTimeout  time.Duration `env:"REDIS_HEALTH_CHECK_TIMEOUT" yaml:"health_check_timeout"`
+	HealthCheckInterval time.Duration `env:"VALKEY_HEALTH_CHECK_INTERVAL" yaml:"health_check_interval"`
+	HealthCheckTimeout  time.Duration `env:"VALKEY_HEALTH_CHECK_TIMEOUT" yaml:"health_check_timeout"`
 	
 	// Retry configuration
-	MaxRetries      int           `env:"REDIS_MAX_RETRIES" yaml:"max_retries"`
-	MinRetryBackoff time.Duration `env:"REDIS_MIN_RETRY_BACKOFF" yaml:"min_retry_backoff"`
-	MaxRetryBackoff time.Duration `env:"REDIS_MAX_RETRY_BACKOFF" yaml:"max_retry_backoff"`
+	MaxRetries      int           `env:"VALKEY_MAX_RETRIES" yaml:"max_retries"`
+	MinRetryBackoff time.Duration `env:"VALKEY_MIN_RETRY_BACKOFF" yaml:"min_retry_backoff"`
+	MaxRetryBackoff time.Duration `env:"VALKEY_MAX_RETRY_BACKOFF" yaml:"max_retry_backoff"`
 	
 	// Monitoring
-	EnableMetrics         bool          `env:"REDIS_ENABLE_METRICS" yaml:"enable_metrics"`
-	LogSlowCommands       bool          `env:"REDIS_LOG_SLOW_COMMANDS" yaml:"log_slow_commands"`
-	SlowCommandThreshold  time.Duration `env:"REDIS_SLOW_COMMAND_THRESHOLD" yaml:"slow_command_threshold"`
+	EnableMetrics         bool          `env:"VALKEY_ENABLE_METRICS" yaml:"enable_metrics"`
+	LogSlowCommands       bool          `env:"VALKEY_LOG_SLOW_COMMANDS" yaml:"log_slow_commands"`
+	SlowCommandThreshold  time.Duration `env:"VALKEY_SLOW_COMMAND_THRESHOLD" yaml:"slow_command_threshold"`
 }
 
 // RedisPoolStats tracks Redis pool statistics

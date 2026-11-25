@@ -36,7 +36,7 @@ services:
       - "ENVIRONMENT=test"
       - "LOG_LEVEL=debug"
       - "DB_HOST=cockroachdb"
-      - "REDIS_HOST=redis"
+      - "VALKEY_HOST=redis"
     wait_strategies:
       - "http"
       - "log"
@@ -52,7 +52,7 @@ services:
       - "ENVIRONMENT=test"
       - "LOG_LEVEL=debug"
       - "DB_HOST=cockroachdb"
-      - "REDIS_HOST=redis"
+      - "VALKEY_HOST=redis"
       - "APIGATEWAY_URL=http://apigateway:3000"
     wait_strategies:
       - "http"
@@ -69,7 +69,7 @@ services:
       - "ENVIRONMENT=test"
       - "LOG_LEVEL=debug"
       - "DB_HOST=cockroachdb"
-      - "REDIS_HOST=redis"
+      - "VALKEY_HOST=redis"
       - "APIGATEWAY_URL=http://apigateway:3000"
     wait_strategies:
       - "http"

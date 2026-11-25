@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/thesoftwaremasons/scholarplatforms-common/pkg/logger"
+	commonroles "github.com/thesoftwaremasons/scholarplatforms-common/pkg/roles"
 )
 
 // ZitadelTokenValidator interface for services that can validate Zitadel tokens
@@ -265,23 +266,13 @@ func (z *ZitadelAuthMiddleware) hasAnyRole(userCtx *UserContext, requiredRoles [
 	return false
 }
 
-// hasRole checks if the user has the required role (with hierarchy)
+// hasRole reports whether userRole satisfies requiredRole. It delegates to the
+// canonical common/pkg/roles matcher: slug style is normalized (SchoolAdmin ==
+// school_admin == school-admin) and SuperAdmin bypasses every check. This
+// replaced an admin/moderator/user hierarchy that exact-matched real role slugs
+// and silently rejected them.
 func (z *ZitadelAuthMiddleware) hasRole(userRole, requiredRole string) bool {
-	// Simple role hierarchy: admin > moderator > user
-	roles := map[string]int{
-		"admin":     3,
-		"moderator": 2,
-		"user":      1,
-	}
-
-	userLevel, userExists := roles[strings.ToLower(userRole)]
-	requiredLevel, requiredExists := roles[strings.ToLower(requiredRole)]
-
-	if !userExists || !requiredExists {
-		return strings.EqualFold(userRole, requiredRole)
-	}
-
-	return userLevel >= requiredLevel
+	return commonroles.HasAny([]string{userRole}, commonroles.Normalize(requiredRole))
 }
 
 // hasScope checks if the token has the required scope

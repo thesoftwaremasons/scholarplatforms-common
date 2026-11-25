@@ -138,7 +138,7 @@ func (sm *SecretsManager) GetSecret(name string) (string, error) {
 func (sm *SecretsManager) LoadSecretsFromEnv() error {
 	commonSecrets := map[string]string{
 		"database_password":     "DB_PASSWORD",
-		"redis_password":        "REDIS_PASSWORD",
+		"redis_password":        "VALKEY_PASSWORD",
 		"jwt_secret":           "JWT_SECRET",
 		"api_key":              "API_KEY",
 		"service_token":        "SERVICE_TOKEN",

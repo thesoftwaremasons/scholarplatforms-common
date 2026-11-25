@@ -71,27 +71,27 @@ func (icl *InfisicalConfigLoader) LoadDatabaseConfig() (*DatabaseConfig, error) 
 	return cfg, nil
 }
 
-// LoadRedisConfig loads Redis configuration from Infisical
-func (icl *InfisicalConfigLoader) LoadRedisConfig() (*RedisConfig, error) {
-	cfg := &RedisConfig{}
+// LoadValkeyConfig loads Redis configuration from Infisical
+func (icl *InfisicalConfigLoader) LoadValkeyConfig() (*ValkeyConfig, error) {
+	cfg := &ValkeyConfig{}
 
-	cfg.Address = icl.client.GetSecretWithDefault("REDIS_ADDR", "localhost:6379")
+	cfg.Address = icl.client.GetSecretWithDefault("VALKEY_ADDR", "localhost:6379")
 
-	password, err := icl.client.GetSecret("REDIS_PASSWORD")
+	password, err := icl.client.GetSecret("VALKEY_PASSWORD")
 	if err != nil {
-		icl.logger.Warn("REDIS_PASSWORD not found in Infisical, using empty password")
+		icl.logger.Warn("VALKEY_PASSWORD not found in Infisical, using empty password")
 		cfg.Password = ""
 	} else {
 		cfg.Password = password
 	}
 
-	dbStr := icl.client.GetSecretWithDefault("REDIS_DB", "0")
+	dbStr := icl.client.GetSecretWithDefault("VALKEY_DB", "0")
 	cfg.DB, _ = strconv.Atoi(dbStr)
 
-	poolSizeStr := icl.client.GetSecretWithDefault("REDIS_POOL_SIZE", "10")
+	poolSizeStr := icl.client.GetSecretWithDefault("VALKEY_POOL_SIZE", "10")
 	cfg.PoolSize, _ = strconv.Atoi(poolSizeStr)
 
-	cfg.Timeout = icl.client.GetSecretWithDefault("REDIS_TIMEOUT", "5s")
+	cfg.Timeout = icl.client.GetSecretWithDefault("VALKEY_TIMEOUT", "5s")
 
 	cfg.SetDefaults()
 	return cfg, nil

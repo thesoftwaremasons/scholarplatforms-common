@@ -36,13 +36,13 @@ type DatabaseConfig struct {
 	MaxLifetime  string `yaml:"max_lifetime" env:"DB_MAX_LIFETIME"`
 }
 
-// RedisConfig represents Redis configuration
-type RedisConfig struct {
-	Address  string `yaml:"address" env:"REDIS_ADDR" validate:"required"`
-	Password string `yaml:"password" env:"REDIS_PASSWORD"`
-	DB       int    `yaml:"db" env:"REDIS_DB" validate:"min=0,max=15"`
-	PoolSize int    `yaml:"pool_size" env:"REDIS_POOL_SIZE" validate:"min=1,max=100"`
-	Timeout  string `yaml:"timeout" env:"REDIS_TIMEOUT"`
+// ValkeyConfig represents shared cache configuration.
+type ValkeyConfig struct {
+	Address  string `yaml:"address" env:"VALKEY_ADDR" validate:"required"`
+	Password string `yaml:"password" env:"VALKEY_PASSWORD"`
+	DB       int    `yaml:"db" env:"VALKEY_DB" validate:"min=0,max=15"`
+	PoolSize int    `yaml:"pool_size" env:"VALKEY_POOL_SIZE" validate:"min=1,max=100"`
+	Timeout  string `yaml:"timeout" env:"VALKEY_TIMEOUT"`
 }
 
 // LoggerConfig represents logging configuration
@@ -189,8 +189,8 @@ func (d *DatabaseConfig) SetDefaults() {
 	}
 }
 
-// SetDefaults sets default values for Redis configuration
-func (r *RedisConfig) SetDefaults() {
+// SetDefaults sets default values for Valkey configuration.
+func (r *ValkeyConfig) SetDefaults() {
 	if r.Address == "" {
 		r.Address = "localhost:6379"
 	}

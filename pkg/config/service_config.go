@@ -22,7 +22,7 @@ type BaseServiceConfig struct {
 	Database DatabaseConfig `yaml:"database"`
 	
 	// Redis configuration
-	Redis RedisConfig `yaml:"redis"`
+	Valkey ValkeyConfig `yaml:"valkey"`
 	
 	// Logging configuration
 	Logging LoggingConfig `yaml:"logging"`
@@ -130,14 +130,14 @@ func LoadServiceConfig[T any](serviceName string, configPtr *T, log logger.Logge
 		{Key: "LOG_FORMAT", DefaultValue: "json", Required: false, Description: "Log format"},
 		{Key: "DB_HOST", DefaultValue: "localhost", Required: false, Description: "Database host"},
 		{Key: "DB_PORT", DefaultValue: 26257, Required: false, Validator: ValidatePort, Description: "Database port"},
-		{Key: "REDIS_HOST", DefaultValue: "localhost", Required: false, Description: "Redis host"},
-		{Key: "REDIS_PORT", DefaultValue: 6379, Required: false, Validator: ValidatePort, Description: "Redis port"},
+		{Key: "VALKEY_HOST", DefaultValue: "localhost", Required: false, Description: "Redis host"},
+		{Key: "VALKEY_PORT", DefaultValue: 6379, Required: false, Validator: ValidatePort, Description: "Redis port"},
 		{Key: "METRICS_ENABLED", DefaultValue: true, Required: false, Description: "Enable metrics collection"},
 		{Key: "TRACING_ENABLED", DefaultValue: false, Required: false, Description: "Enable distributed tracing"},
 		
 		// Sensitive configuration
 		{Key: "DB_PASSWORD", Required: false, Sensitive: true, Description: "Database password"},
-		{Key: "REDIS_PASSWORD", Required: false, Sensitive: true, Description: "Redis password"},
+		{Key: "VALKEY_PASSWORD", Required: false, Sensitive: true, Description: "Redis password"},
 		{Key: "JWT_SECRET", Required: false, Sensitive: true, Description: "JWT signing secret"},
 	})
 	
@@ -198,10 +198,10 @@ var ConfigDefaults = map[string]interface{}{
 	"DB_MAX_IDLE_CONNS":        5,
 	"DB_CONN_MAX_LIFETIME":     "5m",
 	"DB_CONN_MAX_IDLE_TIME":    "5m",
-	"REDIS_POOL_SIZE":          10,
-	"REDIS_MIN_IDLE_CONNS":     2,
-	"REDIS_POOL_TIMEOUT":       "4s",
-	"REDIS_IDLE_TIMEOUT":       "5m",
+	"VALKEY_POOL_SIZE":          10,
+	"VALKEY_MIN_IDLE_CONNS":     2,
+	"VALKEY_POOL_TIMEOUT":       "4s",
+	"VALKEY_IDLE_TIMEOUT":       "5m",
 	"METRICS_PORT":             9090,
 	"METRICS_PATH":             "/metrics",
 	"TRACING_SAMPLING_RATE":    0.1,

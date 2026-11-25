@@ -85,10 +85,12 @@ func (rlm *RateLimitMiddleware) Handler() func(http.Handler) http.Handler {
 			limiter := rlm.getLimiter(clientIP)
 
 			if !limiter.Allow() {
-				rlm.logger.Warn("Rate limit exceeded",
-					logger.String("client_ip", clientIP),
-					logger.String("path", r.URL.Path),
-				)
+				if rlm.logger != nil {
+					rlm.logger.Warn("Rate limit exceeded",
+						logger.String("client_ip", clientIP),
+						logger.String("path", r.URL.Path),
+					)
+				}
 
 				w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", rlm.config.RequestsPerMinute))
 				w.Header().Set("X-RateLimit-Remaining", "0")
@@ -203,7 +205,7 @@ type RateLimitConfig struct {
 	GlobalLimits  GlobalLimits            `yaml:"global_limits" json:"global_limits"`
 	ServiceLimits map[string]ServiceLimit `yaml:"service_limits" json:"service_limits"`
 	IPWhitelist   []string                `yaml:"ip_whitelist" json:"ip_whitelist"`
-	
+
 	// Legacy fields for backward compatibility
 	GlobalRequestsPerMinute int           `yaml:"global_requests_per_minute" json:"global_requests_per_minute"`
 	GlobalBurstSize         int           `yaml:"global_burst_size" json:"global_burst_size"`
@@ -236,7 +238,6 @@ type RateLimitManager struct {
 	logger          logger.Logger
 }
 
-
 // NewRateLimitManager creates a new enhanced rate limit manager
 func NewRateLimitManager(config RateLimitConfig, log logger.Logger) *RateLimitManager {
 	return &RateLimitManager{
@@ -257,7 +258,7 @@ func (rlm *RateLimitManager) ServiceRateLimit(serviceName string) func(http.Hand
 			}
 
 			clientIP := getClientIPFromRequest(r)
-			
+
 			// Check if IP is whitelisted
 			if rlm.isWhitelisted(clientIP) {
 				next.ServeHTTP(w, r)
@@ -266,20 +267,20 @@ func (rlm *RateLimitManager) ServiceRateLimit(serviceName string) func(http.Hand
 
 			// Get service-specific limiter
 			limiter := rlm.getServiceLimiter(serviceName, clientIP)
-			
+
 			if !limiter.Allow() {
 				rlm.logger.Warn("Service rate limit exceeded",
 					logger.String("service", serviceName),
 					logger.String("client_ip", clientIP),
 					logger.String("path", r.URL.Path),
 				)
-				
+
 				serviceLimit := rlm.config.ServiceLimits[serviceName]
 				w.Header().Set("X-RateLimit-Service", serviceName)
 				w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", serviceLimit.RequestsPerSecond))
 				w.Header().Set("X-RateLimit-Remaining", "0")
 				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Second).Unix()))
-				
+
 				http.Error(w, "Service rate limit exceeded", http.StatusTooManyRequests)
 				return
 			}
@@ -347,14 +348,14 @@ func RateLimiterFunc(requestsPerMin int, window time.Duration) func(http.Handler
 	return func(next http.Handler) http.Handler {
 		limiters := make(map[string]*RateLimiter)
 		var mutex sync.RWMutex
-		
+
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			clientIP := getClientIPFromRequest(r)
-			
+
 			mutex.RLock()
 			limiter, exists := limiters[clientIP]
 			mutex.RUnlock()
-			
+
 			if !exists {
 				mutex.Lock()
 				if limiter, exists = limiters[clientIP]; !exists {
@@ -364,12 +365,12 @@ func RateLimiterFunc(requestsPerMin int, window time.Duration) func(http.Handler
 				}
 				mutex.Unlock()
 			}
-			
+
 			if !limiter.Allow() {
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 				return
 			}
-			
+
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -416,7 +417,7 @@ func (rlm *RateLimitManager) RateLimitMiddleware() func(http.Handler) http.Handl
 			}
 
 			clientIP := getClientIPFromRequest(r)
-			
+
 			// Check if IP is whitelisted
 			if rlm.isWhitelisted(clientIP) {
 				next.ServeHTTP(w, r)
@@ -425,17 +426,17 @@ func (rlm *RateLimitManager) RateLimitMiddleware() func(http.Handler) http.Handl
 
 			// Get global limiter
 			limiter := rlm.getGlobalLimiter(clientIP)
-			
+
 			if !limiter.Allow() {
 				rlm.logger.Warn("Global rate limit exceeded",
 					logger.String("client_ip", clientIP),
 					logger.String("path", r.URL.Path),
 				)
-				
+
 				w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", rlm.config.GlobalRequestsPerMinute))
 				w.Header().Set("X-RateLimit-Remaining", "0")
 				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Minute).Unix()))
-				
+
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 				return
 			}
@@ -471,7 +472,7 @@ func (rlm *RateLimitManager) getGlobalLimiter(clientKey string) *RateLimiter {
 	if requestsPerMin == 0 {
 		requestsPerMin = 100 // default
 	}
-	
+
 	burstSize := rlm.config.GlobalBurstSize
 	if burstSize == 0 {
 		burstSize = rlm.config.GlobalLimits.BurstSize

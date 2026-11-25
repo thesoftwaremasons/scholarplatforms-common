@@ -55,10 +55,14 @@ func (m *SessionAuthMiddleware) ExtractSessionContext() func(http.Handler) http.
 			// Extract user info from headers (set by API Gateway or frontend)
 			userID := r.Header.Get("X-User-ID")
 			schoolID := r.Header.Get("X-School-ID")
+			tenantID := r.Header.Get("X-Tenant-ID")
 			email := r.Header.Get("X-User-Email")
 			username := r.Header.Get("X-User-Name")
 			role := r.Header.Get("X-User-Role")
 			authToken := r.Header.Get("Authorization") // Preserve auth token for service-to-service calls
+			if authToken == "" {
+				authToken = r.Header.Get("X-User-Token")
+			}
 			campusIDsHeader := r.Header.Get("X-Campus-Ids")
 			var campusIDs []string
 			if campusIDsHeader != "" {
@@ -78,6 +82,7 @@ func (m *SessionAuthMiddleware) ExtractSessionContext() func(http.Handler) http.
 						email = user.Email
 						username = user.Username
 						role = user.Role
+						tenantID = user.OrganizationID
 						campusIDs = user.CampusIDs
 					}
 				}
@@ -86,13 +91,14 @@ func (m *SessionAuthMiddleware) ExtractSessionContext() func(http.Handler) http.
 			// Create session user if we have at least userID
 			if userID != "" {
 				sessionUser := &SessionUser{
-					UserID:    userID,
-					SchoolID:  schoolID,
-					Email:     email,
-					Username:  username,
-					Role:      role,
-					CampusIDs: campusIDs,
-					AuthToken: authToken,
+					UserID:         userID,
+					SchoolID:       schoolID,
+					Email:          email,
+					Username:       username,
+					Role:           role,
+					OrganizationID: tenantID,
+					CampusIDs:      campusIDs,
+					AuthToken:      authToken,
 				}
 
 				// Add to context
@@ -199,6 +205,7 @@ func (m *SessionAuthMiddleware) hasIdentityHeaders(r *http.Request) bool {
 		r.Header.Get("X-School-ID") != "" ||
 		r.Header.Get("X-User-Email") != "" ||
 		r.Header.Get("X-User-Role") != "" ||
+		r.Header.Get("X-Tenant-ID") != "" ||
 		r.Header.Get("X-Campus-Ids") != "" ||
 		r.Header.Get("X-Session-Data") != ""
 }
@@ -254,6 +261,30 @@ func GetSchoolID(ctx context.Context) string {
 		return user.SchoolID
 	}
 	return ""
+}
+
+// GetTenantID retrieves the tenant/organization ID from session context.
+func GetTenantID(ctx context.Context) string {
+	if user := GetSessionUser(ctx); user != nil {
+		if user.OrganizationID != "" {
+			return user.OrganizationID
+		}
+		return user.SchoolID
+	}
+	return ""
+}
+
+// WithServiceScope attaches tenant and school identity to a background context
+// reconstructed from an authenticated event. It never adds a user bearer or role.
+func WithServiceScope(ctx context.Context, tenantID, schoolID string) context.Context {
+	user := &SessionUser{}
+	if existing := GetSessionUser(ctx); existing != nil {
+		clone := *existing
+		user = &clone
+	}
+	user.OrganizationID = strings.TrimSpace(tenantID)
+	user.SchoolID = strings.TrimSpace(schoolID)
+	return context.WithValue(ctx, sessionContextKey, user)
 }
 
 // GetUsername retrieves username from session context

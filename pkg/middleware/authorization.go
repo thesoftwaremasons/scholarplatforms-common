@@ -53,6 +53,79 @@ func GetUserIDFromContext(ctx context.Context) (string, bool) {
 	return userID, ok && userID != ""
 }
 
+// GatewayHeaderClaims bridges the API-gateway-injected X-User-* /
+// X-School-ID / X-Roles headers into the context keys GetClaimsFromContext
+// reads ("user_id", "email", "school_id", "roles").
+//
+// Why this exists: downstream services like scholarplatforms-ai don't run
+// their own JWT validation — the gateway validates and injects headers.
+// But RequirePermission reads claims out of the context, not the headers.
+// Without this bridge every call lands as 401 Unauthorized.
+//
+// Multiple roles can arrive as either a comma-separated X-User-Role value
+// or a single-role string; both shapes are handled.
+//
+// Callers that run the full Zitadel JWT middleware don't need this — it's
+// safe to layer anyway (it only writes when a key is missing).
+func GatewayHeaderClaims() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Identity headers are authoritative only when the internal gateway
+			// marker is present. This keeps a directly exposed service from
+			// accepting user-forged X-User-* headers.
+			if r.Header.Get("X-Gateway-Service") == "" &&
+				r.Header.Get("X-Gateway-Instance") == "" &&
+				r.Header.Get("X-Service-Name") == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			ctx := r.Context()
+
+			// User ID — only overwrite if absent so we don't clobber a
+			// richer upstream middleware.
+			if _, ok := ctx.Value("user_id").(string); !ok {
+				if v := strings.TrimSpace(r.Header.Get("X-User-ID")); v != "" {
+					ctx = context.WithValue(ctx, "user_id", v)
+				}
+			}
+			if _, ok := ctx.Value("email").(string); !ok {
+				if v := strings.TrimSpace(r.Header.Get("X-User-Email")); v != "" {
+					ctx = context.WithValue(ctx, "email", v)
+				}
+			}
+			if _, ok := ctx.Value("school_id").(string); !ok {
+				if v := strings.TrimSpace(r.Header.Get("X-School-ID")); v != "" {
+					ctx = context.WithValue(ctx, "school_id", v)
+				}
+			}
+
+			// Roles. Accept either X-User-Roles (plural, comma-separated)
+			// or X-User-Role (single value); both are observed in the wild.
+			if ctx.Value("roles") == nil {
+				raw := r.Header.Get("X-User-Roles")
+				if raw == "" {
+					raw = r.Header.Get("X-User-Role")
+				}
+				if raw != "" {
+					parts := strings.Split(raw, ",")
+					roleList := make([]string, 0, len(parts))
+					for _, p := range parts {
+						p = strings.TrimSpace(p)
+						if p != "" {
+							roleList = append(roleList, p)
+						}
+					}
+					if len(roleList) > 0 {
+						ctx = context.WithValue(ctx, "roles", roleList)
+					}
+				}
+			}
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 // GetSchoolIDFromContext is a convenience helper.
 func GetSchoolIDFromContext(ctx context.Context) (string, bool) {
 	schoolID, ok := ctx.Value("school_id").(string)
@@ -78,7 +151,10 @@ func RequireRole(requiredRoles ...string) func(http.Handler) http.Handler {
 	}
 }
 
-// RequirePermission checks if the user has a named permission via the role→permission map.
+// RequirePermission checks if the user has a named permission.
+// When DefaultPermissionsClient is configured (USE_DB_PERMISSIONS=true) it
+// calls the userprofile internal permissions API; on error it falls back to
+// the legacy hardcoded role→permission map so service availability is preserved.
 func RequirePermission(permission string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +163,23 @@ func RequirePermission(permission string) func(http.Handler) http.Handler {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-			if !checkPermission(claims.Roles, permission) {
+
+			var allowed bool
+			if DefaultPermissionsClient != nil {
+				var err error
+				allowed, err = DefaultPermissionsClient.Check(
+					r.Context(), claims.UserID, claims.SchoolID, permission,
+				)
+				if err != nil {
+					// Non-fatal: fall back to the Go map so a momentary
+					// userprofile restart does not break every other service.
+					allowed = checkPermission(claims.Roles, permission)
+				}
+			} else {
+				allowed = checkPermission(claims.Roles, permission)
+			}
+
+			if !allowed {
 				http.Error(w, "Forbidden: missing required permission", http.StatusForbidden)
 				return
 			}
@@ -184,6 +276,30 @@ func checkPermission(userRoles []string, permission string) bool {
 
 		// Reports
 		"reports:read": {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher, roles.FinanceOfficer, roles.Registrar, roles.SupportStaff},
+
+		// Phase 3 — AI syllabus generation (grounded pipeline).
+		// Mirrors the role_defaults seeded in scholarplatforms-userprofile
+		// so services running with the fallback Go map (no DB-backed
+		// permissions client configured) still authorize correctly.
+		"academics:syllabus:generate":        {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:syllabus:audit:read":      {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:syllabus:audit:feedback":  {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:syllabus:link":            {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:scheme:read":              {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:scheme:create":            {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:scheme:edit":              {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:scheme:submit":            {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:scheme:review":            {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator},
+		"academics:scheme:approve":           {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator},
+		"academics:scheme:publish":           {roles.SchoolAdmin, roles.CampusAdmin},
+		"academics:scheme:workflow:manage":   {roles.SchoolAdmin, roles.CampusAdmin},
+		"academics:curriculum:read":          {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		"academics:curriculum:write":         {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator},
+		"academics:curriculum:chunks:read":   {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator},
+		"academics:curriculum:coverage:read": {roles.SchoolAdmin, roles.CampusAdmin, roles.StageCoordinator, roles.ClassTeacher, roles.SubjectTeacher},
+		// Ingest writes to the AI retrieval corpus — sensitive. Empty
+		// list means only SuperAdmin passes (IsSuperAdmin early-return above).
+		"academics:curriculum:ingest": {},
 	}
 
 	allowedRoles, exists := permissionMap[permission]
@@ -193,7 +309,7 @@ func checkPermission(userRoles []string, permission string) bool {
 
 	for _, ur := range userRoles {
 		for _, ar := range allowedRoles {
-			if strings.EqualFold(ur, ar) {
+			if strings.EqualFold(roles.Normalize(ur), roles.Normalize(ar)) {
 				return true
 			}
 		}

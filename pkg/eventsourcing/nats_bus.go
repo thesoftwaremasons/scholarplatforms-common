@@ -24,7 +24,7 @@ type NATSEventBus struct {
 type NATSConfig struct {
 	URL        string
 	StreamName string
-	Subjects   []string // Subjects to create in the stream
+	Subjects   []string   // Subjects to create in the stream
 	Conn       *nats.Conn // Optional: reuse an existing NATS connection
 }
 
@@ -102,9 +102,11 @@ func (nb *NATSEventBus) ensureStream(subjects []string) error {
 	}
 
 	streamConfig := &nats.StreamConfig{
-		Name:       nb.streamName,
-		Subjects:   subjects,
-		Retention:  nats.WorkQueuePolicy,
+		Name:     nb.streamName,
+		Subjects: subjects,
+		// Domain events are fan-out facts: activity logs, notifications, analytics,
+		// and Intelligence must each be able to maintain an independent durable.
+		Retention:  nats.LimitsPolicy,
 		MaxAge:     90 * 24 * time.Hour, // 90 days retention
 		Storage:    nats.FileStorage,
 		Replicas:   1, // Use 1 for single-node; increase for HA clusters

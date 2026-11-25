@@ -1,7 +1,12 @@
 package middleware
 
 import (
+	"bufio"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/thesoftwaremasons/scholarplatforms-common/pkg/logger"
@@ -35,6 +40,22 @@ func (lrw *LoggingResponseWriter) Write(data []byte) (int, error) {
 	return size, err
 }
 
+// Flush preserves http.Flusher support for streaming responses.
+func (lrw *LoggingResponseWriter) Flush() {
+	if flusher, ok := lrw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// Hijack preserves http.Hijacker support for WebSocket upgrades and reverse proxy protocol switching.
+func (lrw *LoggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := lrw.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("underlying response writer does not support hijacking")
+	}
+	return hijacker.Hijack()
+}
+
 // LoggingMiddleware provides HTTP request logging
 type LoggingMiddleware struct {
 	logger logger.Logger
@@ -65,7 +86,7 @@ func (lm *LoggingMiddleware) Handler() func(http.Handler) http.Handler {
 			lm.logger.Info("HTTP request",
 				logger.String("method", r.Method),
 				logger.String("path", r.URL.Path),
-				logger.String("query", r.URL.RawQuery),
+				logger.String("query", redactSensitiveQuery(r.URL.RawQuery)),
 				logger.String("remote_addr", r.RemoteAddr),
 				logger.String("user_agent", r.UserAgent()),
 				logger.Int("status_code", lrw.statusCode),
@@ -83,6 +104,45 @@ func (lm *LoggingMiddleware) Handler() func(http.Handler) http.Handler {
 				)
 			}
 		})
+	}
+}
+
+func redactSensitiveQuery(rawQuery string) string {
+	if rawQuery == "" {
+		return ""
+	}
+
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return redactSensitiveQueryFallback(rawQuery)
+	}
+
+	for key := range values {
+		if isSensitiveQueryKey(key) {
+			values[key] = []string{"***"}
+		}
+	}
+
+	return values.Encode()
+}
+
+func redactSensitiveQueryFallback(rawQuery string) string {
+	parts := strings.Split(rawQuery, "&")
+	for i, part := range parts {
+		key, _, found := strings.Cut(part, "=")
+		if found && isSensitiveQueryKey(key) {
+			parts[i] = key + "=***"
+		}
+	}
+	return strings.Join(parts, "&")
+}
+
+func isSensitiveQueryKey(key string) bool {
+	switch strings.ToLower(key) {
+	case "token", "access_token", "id_token", "refresh_token", "session_token":
+		return true
+	default:
+		return false
 	}
 }
 

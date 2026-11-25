@@ -259,7 +259,7 @@ func (suite *IntegrationTestSuite) setupRedis(config TestConfig, networkName str
 		Image:        config.RedisImage,
 		ExposedPorts: []string{"6379/tcp"},
 		Env: map[string]string{
-			"REDIS_PASSWORD": config.RedisPassword,
+			"VALKEY_PASSWORD": config.RedisPassword,
 		},
 		Cmd: []string{
 			"redis-server",

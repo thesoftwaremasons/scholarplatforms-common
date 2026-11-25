@@ -113,6 +113,17 @@ func CanAssign(actorRoles []string, targetRole string) bool {
 	return false
 }
 
+// CanInvite returns true when an actor may invite a user with the target role.
+// School administrators may invite another SchoolAdmin into their own school so
+// tenant-level maker/checker workflows can be completed without platform staff.
+// Role mutation and revocation continue to use CanAssign's narrower policy.
+func CanInvite(actorRoles []string, targetRole string) bool {
+	if CanAssign(actorRoles, targetRole) {
+		return true
+	}
+	return HasAny(actorRoles, SchoolAdmin) && strings.EqualFold(Normalize(targetRole), SchoolAdmin)
+}
+
 // AssignableRoles returns the distinct set of roles that actorRoles may grant.
 func AssignableRoles(actorRoles []string) []string {
 	if IsSuperAdmin(actorRoles) {
@@ -183,7 +194,11 @@ var legacyNormMap = map[string]string{
 // If it matches a known legacy alias, it returns the canonical constant.
 // Otherwise it returns the input unchanged.
 func Normalize(role string) string {
-	lower := strings.ToLower(role)
+	lower := strings.ToLower(strings.TrimSpace(role))
+	// Role assignments use stable kebab-case slugs (for example
+	// "school-admin"), while older JWTs and service contracts use snake_case.
+	// Treat separators consistently so workflow roles resolve to real users.
+	lower = strings.NewReplacer("-", "_", " ", "_").Replace(lower)
 	if mapped, ok := legacyNormMap[lower]; ok {
 		return mapped
 	}
